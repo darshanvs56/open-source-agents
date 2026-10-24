@@ -1,1 +1,3 @@
-# Python 3.9+ standard library only. No runtime or test dependencies.
+# Core runtime is standard library compatible.
+# For Google Agent Development Kit (ADK) integration (Python 3.10+):
+google-adk>=2.13.0

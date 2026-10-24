@@ -11,6 +11,7 @@ service-account*.json
 __pycache__/
 *.py[cod]
 .venv/
+.*-venv/
 venv/
 env/
 .pytest_cache/
@@ -19,6 +20,7 @@ htmlcov/
 dist/
 build/
 *.egg-info/
+.adk/
 
 # Node.js / TypeScript
 node_modules/

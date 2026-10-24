@@ -5,14 +5,19 @@ import http.client
 from datetime import datetime, timezone
 
 from .adapter import authorize, run_xalgorix
+from .agent import run_agent
 from .checks import check, deduplicate
 from .local_llm import review
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("operation", choices=["check", "review", "xalgorix-info", "xalgorix-review"])
+    parser.add_argument("operation", choices=["check", "review", "agent", "adk", "xalgorix-info", "xalgorix-review"])
+    parser.add_argument("--provider", choices=["ollama", "gemini", "mock"], default="ollama")
     parser.add_argument("--model", default="gemma4:e4b")
+    parser.add_argument("--query", default="Review examples/source for security vulnerabilities and suggest remediations")
+    parser.add_argument("--api-key", default=None)
+    parser.add_argument("--no-remediation", action="store_true", default=False)
     parser.add_argument("--source")
     parser.add_argument("--scope")
     parser.add_argument("--authorized", action="store_true")
@@ -30,7 +35,34 @@ def main(argv=None):
                   started_at=datetime.now(timezone.utc).isoformat(),
                   source=args.source, scope=args.scope, authorized=args.authorized)
     try:
-        if args.operation in {"check", "review"}:
+        if args.operation == "adk":
+            from .adk_agent import run_with_adk
+            model = args.model if args.model != "gemma4:e4b" else "gemini-2.5-flash"
+            report["adk"] = run_with_adk(query=args.query, model=model)
+            if report["adk"].get("status") != "success":
+                report["errors"].append("ADK execution failed")
+        elif args.operation == "agent":
+            if not args.source or not args.scope:
+                raise ValueError("--source and --scope required")
+            root = authorize(args.source, args.scope, args.authorized)
+            model = args.model
+            if args.provider == "gemini" and args.model == "gemma4:e4b":
+                model = "gemini-2.5-flash"
+            elif args.provider == "mock" and args.model == "gemma4:e4b":
+                model = "mock-engine"
+            agent_output = run_agent(
+                root=root,
+                provider=args.provider,
+                model=model,
+                api_key=args.api_key,
+                timeout=min(args.timeout, 300),
+                remediate=not args.no_remediation
+            )
+            report["agent"] = agent_output["agent"]
+            report["findings"] = agent_output["findings"]
+            if agent_output["errors"]:
+                report["errors"].extend(agent_output["errors"])
+        elif args.operation in {"check", "review"}:
             if not args.source or not args.scope:
                 raise ValueError("--source and --scope required")
             root = authorize(args.source, args.scope, args.authorized)

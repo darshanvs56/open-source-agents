@@ -69,7 +69,7 @@ def review(root, model="gemma4:e4b", timeout=120):
     return evidence
 
 
-def validate(data, sources, model):
+def validate(data, sources, model, engine="ollama"):
     if not isinstance(data, dict) or set(data) != {"findings"}:
         raise ValueError("expected findings object")
     items = data["findings"]
@@ -92,5 +92,5 @@ def validate(data, sources, model):
         identity = f"llm.review:{path}:{line}:{text}"
         findings.append(dict(item, id=hashlib.sha256(identity.encode()).hexdigest(),
                              rule="llm.review", kind="source-review", status="unverified",
-                             provenance=[{"engine": "ollama", "model": model}]))
+                             provenance=[{"engine": engine, "model": model}]))
     return findings

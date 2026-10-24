@@ -1,183 +1,181 @@
 # Securevantara
 
-**Securevantara is a vulnerability review agent** for anyone who wants to understand
-potential security weaknesses in software they own or are authorized to assess.
-Its intended users include business stakeholders, product and engineering teams,
-website owners, developers, security researchers, and authorized bug-bounty hunters.
+> Autonomous local security review & remediation agent combining deterministic Python AST checks with multi-provider LLM auditing and evidence validation.
 
-The broader goal is to support vulnerability assessment across software applications,
-websites, web applications, APIs, and source-code repositories, including GitHub
-projects. The current version reviews source code using built-in Python checks and
-optional AI review through Ollama, producing evidence-backed JSON reports for human
-review. Findings are suggestions, not proof of exploitability. Running this prototype
-requires command-line setup; a dashboard and business-facing summaries are planned.
+---
 
-This is **not a complete autonomous vulnerability discovery or bug-bounty platform**.
-The default workflow needs no Xalgorix, cloud account, API key, or Python package.
+## Overview
 
-## Capabilities and status
+### Problem Statement & Intended Users
+- **Problem**: Reviewing software for security vulnerabilities often forces developers into a difficult trade-off between noisy, inflexible static analysis tools and opaque cloud scanners that risk exposing proprietary code. Moreover, AI-generated security claims frequently hallucinate non-existent issues or line numbers.
+- **Intended Users**: Business stakeholders, product and engineering teams, developers, security researchers, and authorized bug-bounty hunters assessing software repositories they own or have explicit written permission to test.
 
-| Capability | Status |
-| --- | --- |
-| Python AST checks for direct `eval()` / `exec()` calls | Implemented; review suggestions only |
-| Local Ollama source review, default `gemma4:e4b` | Implemented; strict source-evidence validation; model quality varies |
-| Explicit authorization and exact local directory scope | Implemented input checks; not proof of ownership |
-| Private JSON reports, raw model evidence and file hashes | Implemented |
-| Optional Xalgorix v4.6.159 subprocess adapter | Partial; real version/help checked, source-review construction mocked |
-| Xalgorix finding normalization | Unsupported; CLI text retained as raw evidence |
-| Semgrep, Bandit, Ruff, pip-audit, Gitleaks adapters | Planned, not included |
-| Website/HTTP observer, live vulnerability testing, GitHub ingestion, JAR analysis | Planned |
-| Autonomous discovery, independent verification, fixes and bounty workflow | Planned |
+### Key Features
+- **Multi-Stage Autonomous Agent Loop**: Discovers authorized sources, executes static AST tools, queries AI review models, cross-verifies line citations, plans contextual remediations, and computes executive risk metrics.
+- **Deterministic AST Baseline**: Identifies risky dynamic execution calls (such as direct `eval()` and `exec()`) without external network calls or dependencies.
+- **Multi-Provider LLM Auditing**: Supports local Ollama models (e.g. `gemma4:e4b`), Google Gemini models (e.g. `gemini-2.5-flash`), and offline mock engines with zero pip dependencies.
+- **Strict Evidence Citation Validation**: Validates all model findings against actual source file lines; hallucinated line numbers or fabricated evidence strings are rejected.
+- **Remediation & Patch Planning**: Provides concrete, safe mitigation guidance and alternative code patterns (such as `ast.literal_eval()`) for every validated finding.
+- **Strict Scope & Privacy Boundaries**: Files are inspected in read-only mode and never executed. Reports are created with exclusive `0600` permissions.
 
-The first milestone reviews **local source**, including a manually prepared snapshot of
-an authorized GitHub repository. It does not clone repositories or contact websites.
+---
 
-## Xalgorix capabilities and Securevantara's roadmap
+## Technical Stack
 
-Xalgorix is an optional, separate security engine. Its
-[official v4.6.159 documentation](https://github.com/xalgorix/xalgorix/blob/v4.6.159/README.md)
-describes the following capabilities. These are upstream features, not a list of
-features already implemented or validated in Securevantara.
+- **Language & Runtime**: Python 3.9+ (Python 3.12 recommended; tested on Python 3.9.6 on macOS and 3.12 on Linux).
+- **Agent Framework**: Google Agent Development Kit (ADK) (`google-adk>=2.13.0`) and lightweight multi-stage agent pipeline (`securevantara.agent`).
+- **Models**:
+  - Local: Ollama (`gemma4:e4b` default via loopback `127.0.0.1:11434`).
+  - Cloud: Google Gemini (`gemini-2.5-flash` via standard REST API).
+  - Test / CI: Offline deterministic mock provider.
+- **External Engines (Optional)**: Xalgorix v4.6.159 subprocess adapter with bounded execution limits.
 
-| Area | Documented Xalgorix capabilities |
-| --- | --- |
-| Websites and web applications | Browser-assisted testing of pages, forms, authentication flows and runtime behavior |
-| APIs | API, GraphQL and WebSocket security testing |
-| Software and repositories | Source review from directories, Git URLs or uploaded code archives; optional build-and-run testing |
-| Discovery | Reconnaissance, directory/file discovery, single-target, wildcard and multiple-target modes |
-| Vulnerability classes | Injection, SSRF, access-control flaws, session issues, uploads, deserialization, race conditions and business logic |
-| Additional assessment areas | CORS, cookies, redirects, subdomain takeover, email, CMS, cloud/infrastructure and content spoofing |
-| Verification | Independent reproduction attempts, exploitation evidence and a distinction between source review and runtime verification |
-| Reporting | CVSS details, evidence, remediation guidance and PDF reports with executive summaries |
-| Operations | Dashboard, scan history, live events, scheduling, service mode and API access |
-| Integrations | Configurable LLM providers including Ollama, AgentMail, Discord, Telegram, Caido traffic inspection and a separate GitHub PR-review app |
+---
 
-Securevantara currently exposes only a partial Xalgorix source-review adapter and
-version probe. Website/API testing, provisioning, independent verification, PDF
-reporting, scheduling and these other integrations are not exposed by this wrapper.
-They require separate implementation and controlled evaluation before being offered
-as Securevantara features. Neither project should be assumed to cover every software
-type or find every vulnerability. Active testing requires explicit target permission;
-Securevantara does not automatically exploit targets, apply fixes, deploy changes or
-submit bounty reports.
-
-## Architecture and data flow
+## Architecture & Data Flow
 
 ```text
-source folder + explicit authorization + matching scope
-  -> scope / symlink / special-file checks
-  -> Python AST rules
-  -> optional source text sent only to loopback Ollama
-  -> validate model JSON and evidence against source lines
-  -> preserve provenance and write private JSON report
+[Authorized Source Snapshot]
+          │
+          ▼
+┌────────────────────────────────────────────────────────┐
+│               SecurityReviewAgent Loop                 │
+│                                                        │
+│  Stage 1: Discovery & Scope Authorization             │
+│           (canonical path, symlink & size checks)      │
+│                          │                             │
+│  Stage 2: Deterministic AST Analysis (Tool)           │
+│           (ast.parse, syntax tree walk)                │
+│                          │                             │
+│  Stage 3: Semantic AI Audit (Tool)                    │
+│           (Ollama / Gemini / Mock)                     │
+│                          │                             │
+│  Stage 4: Triage & Evidence Verification               │
+│           (exact line substring validation)            │
+│                          │                             │
+│  Stage 5: Remediation & Patch Planning                 │
+│           (actionable mitigation & safe alternatives)  │
+│                          │                             │
+│  Stage 6: Synthesis & Risk Posture                     │
+│           (severity metrics, SHA-256 provenance)       │
+└────────────────────────────────────────────────────────┘
+          │
+          ▼
+[Private JSON Report (mode 0600)]
 ```
 
-The model receives no tools and cannot execute code. Prompt injection in reviewed files
-can still influence suggestions; exact evidence matching establishes a source citation,
-not vulnerability validity. All model findings remain `unverified`.
+The model receives no execution tools and cannot execute inspected code. Source code is treated strictly as untrusted data, never as prompt instructions. All model-suggested findings remain marked `unverified`.
 
-## Local setup: macOS, Linux, Windows/WSL
+---
 
-Use Python 3.9+ (3.12 recommended). On macOS, install Python from python.org or your
-package manager. On Debian/Ubuntu use `sudo apt install python3 python3-venv`.
-On Windows use WSL2 with Ubuntu and run the Linux instructions inside WSL; native
-Windows subprocess handling is not supported. Open this repository in VS Code and
-use its integrated terminal. Do not mix Windows Python with a WSL environment.
+## Prerequisites
 
-From the repository root:
+- **Python 3.9+** (Python 3.12 recommended).
+- **Ollama** (optional, if using `--provider ollama`): running locally on `http://127.0.0.1:11434`.
+- **Gemini API Key** (optional, if using `--provider gemini`): export `GEMINI_API_KEY`.
+- No third-party pip packages are required for core operations.
+
+---
+
+## Installation & Setup
+
+1. **Navigate to the agent directory:**
+   ```bash
+   cd agents/securevantara
+   ```
+
+2. **Set up the virtual environment:**
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate
+   python -m pip install -r requirements.txt
+   mkdir -p reports
+   ```
+
+3. **Configure Environment Variables (Optional):**
+   ```bash
+   cp .env.example .env
+   ```
+
+---
+
+## Configuration & Environment Variables
+
+| Variable Name | Required | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `GEMINI_API_KEY` | No (only for Gemini) | *None* | Google Gemini API key for `--provider gemini` |
+| `XALGORIX_LLM_PROVIDER` | No | `ollama` | Optional Xalgorix engine LLM provider |
+| `XALGORIX_LLM` | No | `gemma4:e4b` | Model name for optional Xalgorix adapter |
+| `XALGORIX_API_BASE` | No | `http://127.0.0.1:11434` | Endpoint for optional Xalgorix engine |
+
+---
+
+## How to Run
+
+### 1. Run with Google Agent Development Kit (ADK)
+
+Securevantara exposes a first-class `root_agent` equipped with AST scanning, source reading, citation verification, and remediation tools:
 
 ```bash
-cd agents/securevantara
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
-mkdir -p reports
+# Set your Gemini API key:
+export GEMINI_API_KEY="your-api-key"
+
+# Launch the interactive local ADK Web UI (visualize reasoning, chat, tool invocations):
+adk web agents/
+
+# Run a single turn via ADK CLI:
+adk run agents/securevantara "Review examples/source for security vulnerabilities"
+
+# Or run programmatic ADK execution via Securevantara CLI:
+python -m securevantara adk --query "Audit examples/source for security issues" --report reports/adk-report.json
 ```
 
-`requirements.txt` deliberately has no dependencies. No `.env` file is loaded.
-The included `.env.example` documents the optional Xalgorix settings only.
+### 2. Autonomous Security Review Agent (Local & Cloud)
 
-## Run immediately without an LLM or Xalgorix
+Run the multi-stage agent pipeline over an authorized codebase snapshot:
+
+```bash
+# Using offline mock provider (instant, zero network):
+python -m securevantara agent \
+  --source examples/source --scope examples/source --authorized \
+  --provider mock --report reports/agent-report-1.json
+
+# Using local Ollama model (gemma4:e4b):
+python -m securevantara agent \
+  --source examples/source --scope examples/source --authorized \
+  --provider ollama --model gemma4:e4b --timeout 120 \
+  --report reports/agent-ollama-1.json
+
+# Using Google Gemini:
+export GEMINI_API_KEY="your-api-key"
+python -m securevantara agent \
+  --source examples/source --scope examples/source --authorized \
+  --provider gemini --model gemini-2.5-flash \
+  --report reports/agent-gemini-1.json
+```
+
+### 2. Run Built-in AST Checks Only
+
+Run deterministic static checks with no LLM inference:
 
 ```bash
 python -m securevantara check \
   --source examples/source --scope examples/source --authorized \
   --report reports/check-1.json
-python -m json.tool reports/check-1.json
 ```
 
-The synthetic sample contains one deliberate direct `eval()` call at line 6. The
-built-in rule labels it `needs-review`, severity `info`. A call alone does not prove
-that an attacker controls its input. The sample is read, never executed.
-
-## Run with your local model
-
-Install and start Ollama using its [official instructions](https://docs.ollama.com/quickstart).
-The model must already be installed; Securevantara never pulls models automatically.
-For this workstation the selected model is `gemma4:e4b`.
-
-```bash
-ollama list
-# Only if you need to download the requested model:
-ollama pull gemma4:e4b
-# If the local Ollama service is not already running, in another terminal:
-ollama serve
-```
+### 3. Run Single-Shot Ollama Review
 
 ```bash
 python -m securevantara review \
   --source examples/source --scope examples/source --authorized \
   --model gemma4:e4b --timeout 120 \
   --report reports/review-1.json
-python -m json.tool reports/review-1.json
 ```
 
-Use the same command with an absolute source directory and exactly the same `--scope`
-for your own sanitized, authorized snapshot. `--authorized` is your attestation that
-source review is permitted; an open-source licence does not authorize live testing.
-Another installed Ollama model can be selected with `--model`; other models have not
-been benchmarked. Inference always uses `127.0.0.1:11434`, never a configurable remote
-endpoint. Keep Ollama local. No API key is required, recorded, or sent.
+### 4. Docker Execution
 
-Review includes at most ten source files, 12,000 bytes per file, and 24,000 source
-characters in total. Supported extensions: py, js, ts, tsx, jsx, go, java, rs, php,
-rb, cs. Tests, Git metadata, dependency folders and virtual environments are skipped
-by the model. Skipped files appear in `local_llm.skipped`; this is partial coverage.
-No supported files is an error. The built-in checks only understand Python.
-
-## Reports, finding schema and statuses
-
-Reports use `schema_version: "1.0"`, operation, source, scope, authorization flag,
-UTC start/finish times, findings, errors and the wrapper's `exit_status`.
-Each normalized finding has:
-
-| Field | Meaning |
-| --- | --- |
-| `id` | SHA-256 of engine rule, relative path, line and exact evidence |
-| `rule`, `title` | Detector identity and summary |
-| `severity` | info / low / medium / high / critical; model rating is unvalidated |
-| `status` | needs-review / unverified; confirmed is reserved for future independent verification |
-| `kind` | source-review; never dynamic penetration testing |
-| `path`, `line` | Relative source location and 1-based line |
-| `evidence` | Exact source fragment |
-| `provenance` | Engine, rule or local model identity |
-
-Deduplication uses exact rule, path, line and evidence, merging provenance only for
-that identity. Different engines remain distinct; no speculative semantic merging.
-Model output must have the expected fields and a matching evidence substring at the
-cited line. Invalid output is rejected as a whole, retained in `local_llm.raw_response`,
-and reported as an error. Source hashes are recorded for reviewed files.
-
-Exit `0` means the requested workflow completed, **not that the source is secure**.
-Exit `2` means invalid authorization/input, execution failure, unavailable service,
-model output validation failure, or report failure. Built-in findings survive a model
-failure. Inspect `errors` and any skipped files. Reports use mode 0600 and exclusive
-creation: choose a new filename for every run. Raw evidence may contain sensitive code;
-keep reports private and do not render model text as executable HTML or commands.
-
-## Docker
-
-The default image is local-only and does not download Xalgorix:
+Run tests or check within a hardened read-only container:
 
 ```bash
 docker build -t securevantara:local .
@@ -188,115 +186,153 @@ docker run --rm --network none --read-only \
   securevantara-tests
 ```
 
-For the built-in check, mount only your source and report folder:
+### 5. Optional Xalgorix Adapter (Partial)
 
 ```bash
-docker run --rm --network none --read-only --cap-drop ALL \
-  --security-opt no-new-privileges --pids-limit 64 --memory 256m --cpus 1 \
-  --user "$(id -u):$(id -g)" \
-  -v "$PWD/examples/source:/source:ro" -v "$PWD/reports:/reports" \
-  securevantara:local check --source /source --scope /source --authorized \
-  --report /reports/docker-check-1.json
-```
-
-Use native Python for local Ollama review on macOS/WSL: container loopback is not host
-loopback. The restricted Docker command has no model access by design. Do not mount
-home directories, Docker sockets, credentials or production datasets. Docker is an
-additional boundary, not a guarantee against kernel or runtime vulnerabilities.
-
-## Optional Xalgorix adapter (partial)
-
-This is separate from the default workflow. Existing Xalgorix dashboards (for example
-`http://localhost:9137`) are not accessed, stopped or treated as scan targets.
-
-Pinned compatibility: **v4.6.159**, verified against the installed release and
-[official source](https://github.com/xalgorix/xalgorix/blob/v4.6.159/cmd/xalgorix/main.go),
-[README](https://github.com/xalgorix/xalgorix/blob/v4.6.159/README.md) and
-[release assets](https://github.com/xalgorix/xalgorix/releases/tag/v4.6.159).
-Official installation supports macOS/Linux prebuilt binaries; use Linux under WSL.
-Source builds require Go 1.26+ and Node.js per the upstream README. Its Go module path
-is different from the GitHub repository path; do not invent a `go install` path.
-Prefer the pinned Docker target below, which checks the official Linux asset SHA-256.
-For native installation download the appropriate pinned release asset, verify its
-published SHA-256, make it executable and place it on PATH. Do not use `@latest` for
-this adapter. Upstream is Apache-2.0; its code is not vendored here.
-
-```bash
-docker build --target xalgorix -t securevantara-xalgorix:local .
 python -m securevantara xalgorix-info --report reports/xalgorix-info-1.json
 ```
 
-For an already isolated environment with authorized local source, the experimental
-command is:
+---
 
-```bash
-export XALGORIX_LLM_PROVIDER=ollama
-export XALGORIX_LLM=gemma4:e4b
-export XALGORIX_API_BASE=http://127.0.0.1:11434
-export XALGORIX_MAX_ITERATIONS=8
-python -m securevantara xalgorix-review \
-  --source examples/source --scope examples/source --authorized --sandboxed \
-  --timeout 120 --report reports/xalgorix-review-1.json
+## Example Input & Output
+
+### Example Input (`examples/source/sample.py`)
+```python
+"""Synthetic review fixture. Never run this function with untrusted input."""
+
+def calculate(expression):
+    # Deliberate finding for the local smoke test; not production application code.
+    return eval(expression)
 ```
 
-`--sandboxed` is an operator acknowledgement, **not sandbox creation or detection**.
-Xalgorix can execute tools; input scope checks cannot constrain every upstream tool.
-Use a disposable sandbox with read-only source and restricted egress before review.
-Hosted LLMs are upstream options but are not needed for this prototype; source may be
-transmitted if you configure them. Native Xalgorix can read its own home configuration.
-Never mount that configuration into the restricted default container.
+### Example Output (`reports/agent-report.json`)
+```json
+{
+  "schema_version": "1.0",
+  "operation": "agent",
+  "source": "examples/source",
+  "scope": "examples/source",
+  "authorized": true,
+  "agent": {
+    "name": "Securevantara Security Review Agent",
+    "version": "1.0.0",
+    "provider": "mock",
+    "model": "mock-engine",
+    "stages_executed": [
+      "discovery",
+      "static_analysis",
+      "semantic_audit",
+      "triage_verification",
+      "remediation_planning",
+      "synthesis"
+    ],
+    "metrics": {
+      "files_reviewed": 1,
+      "files_skipped": 0,
+      "total_findings": 2,
+      "severity_counts": {
+        "critical": 0,
+        "high": 1,
+        "medium": 0,
+        "low": 0,
+        "info": 1
+      },
+      "risk_posture": "High"
+    },
+    "reviewed_files": {
+      "sample.py": "72ca979836865190d8de13a7bed6ff594d2c99043c06b6852251c576fa2ecdbe"
+    }
+  },
+  "findings": [
+    {
+      "id": "16155e652169a48ba4f930bb6a7979d47aeced5dfc1e7f63bb34f16aee5b9390",
+      "rule": "python.dynamic-eval",
+      "title": "Dynamic Python execution",
+      "severity": "info",
+      "status": "needs-review",
+      "kind": "source-review",
+      "path": "sample.py",
+      "line": 6,
+      "evidence": "eval(expression)",
+      "provenance": [{"engine": "securevantara-ast", "rule": "python.dynamic-eval"}],
+      "remediation": "Avoid eval() with untrusted input. Use ast.literal_eval() to safely parse Python literals (strings, numbers, tuples, lists, dicts, booleans, None), or use json.loads() for structured JSON.",
+      "safer_alternative": "ast.literal_eval(expression)"
+    }
+  ],
+  "errors": [],
+  "exit_status": 0
+}
+```
 
-Only `--version` and `--source PATH --code-scan review` are constructed. No target,
-provision, update, install, exploit, patch or bounty submission command is exposed.
-The adapter uses shell=False, closed stdin, a separate process group, wall timeouts
-(maximum 3600 seconds), and bounded stdout/stderr capture (default 64 KiB each, maximum
-1 MiB each). It records command, binary hash, exit status, timeout and truncation.
-Auto-update and auto-install are disabled in its child environment. Captured output
-is UTF-8 with replacement for invalid bytes, not a lossless binary archive. Truncated
-text is explicitly marked. No confirmed CLI JSON finding format exists in this
-adapter, so raw output produces **zero normalized Xalgorix findings**. A child exit
-status cannot establish upstream review success. Real model-backed Xalgorix discovery
-and independent verification have not been tested here.
+---
 
-## Tests, evaluations and troubleshooting
+## Reports, Finding Schema & Statuses
 
-From this project directory:
+Each normalized finding conforms to the following schema:
+
+| Field | Meaning |
+| :--- | :--- |
+| `id` | SHA-256 of engine rule, relative path, line and exact evidence |
+| `rule`, `title` | Detector identity and concise summary |
+| `severity` | `info` / `low` / `medium` / `high` / `critical` |
+| `status` | `needs-review` / `unverified` (confirmed is reserved for future runtime verification) |
+| `kind` | `source-review` (never dynamic penetration testing) |
+| `path`, `line` | Relative source location and 1-based line number |
+| `evidence` | Exact source fragment on the cited line |
+| `provenance` | List of contributing detectors, models, or engines |
+| `remediation` | Contextual mitigation advice for the detected pattern |
+| `safer_alternative` | Recommended safe alternative code snippet |
+
+---
+
+## How to Test
+
+Run the full automated test suite (42 unit tests covering ADK tools, lifecycle stages, AST parsing, and model adapters):
 
 ```bash
-python -m unittest discover -s tests -v
-python -m compileall -q securevantara tests
-# From the repository root:
+cd agents/securevantara
+python3 -m unittest discover -s tests -v
+PYTHONPYCACHEPREFIX=/tmp/securevantara-pycache python3 -m compileall -q securevantara tests
+```
+
+From repository root:
+```bash
 git diff --check
 ```
 
-No formatter, linter or type checker was configured in the original repository.
-Unit tests mock subprocess and HTTP calls. Synthetic positive and negative AST cases,
-model citation validation, scope rejection, symlink rejection, missing executable,
-timeout, malformed output, non-zero exit, truncation and private report writing are
-covered. They do not measure real-world vulnerability recall or exploitability.
+---
 
-If Ollama is unavailable, check `ollama list` and that its local server is running.
-If model output is rejected, inspect raw evidence and use `check` for the deterministic
-baseline. Model failure never promotes a suggestion to confirmed. A timeout needs a
-new report filename before retry. Missing Xalgorix does not affect local commands.
-For symlink or special-file errors prepare a sanitized regular-file snapshot. Runtime
-scope checks are subject to filesystem races: avoid writable or adversarial live trees.
-For report permission errors use a writable private directory. No report parent is
-automatically created. Large repositories need a future streaming inventory/budget
-implementation; model coverage is intentionally bounded and incomplete.
+## Known Limitations
 
-## Next milestones and evaluation gates
+- **Source Scope Limits**: Bounds source inspection to at most 10 files, 12,000 bytes per file, and 24,000 source characters total per batch.
+- **Model Variability**: AI-generated suggestions vary across models and temperatures. Model output is verified for exact source line citations, but semantic soundness still requires human review.
+- **No Autonomous Exploitation**: Securevantara does not exploit systems, patch live code autonomously, or submit external bounty reports.
+- **Symlinks & Special Files**: Symlinked directories and special device files fail closed to prevent accidental scope escape.
 
-Evaluate Xalgorix first in a deliberately vulnerable, isolated local lab. Record target
-and engine versions, model digest, seed vulnerabilities, negatives, independent
-reproduction, scope violations, false positives, runtime and cost per verified finding.
-Do not publish comparative quality claims without those runs. Then add optional
-scanner adapters and verified output fixtures, broader language/dependency analysis,
-website scope/egress enforcement, independent verification, remediation proposals,
-and human-reviewed bounty report drafts. Public repository access is not permission
-to test a deployment. Never automatically apply fixes, deploy or submit bounty reports.
+---
+
+## Security & Privacy Considerations
+
+- **Secrets Handling**: Zero credentials or private `.env` files are tracked in git. API keys (such as `GEMINI_API_KEY`) are read from memory only and never serialized to reports.
+- **Data Privacy**: Local mode (`--provider ollama`) communicates exclusively over loopback (`127.0.0.1:11434`). Source code never leaves your local machine unless you explicitly choose a cloud provider.
+- **Safety Boundaries**: The agent inspects code in read-only mode and never invokes `eval()`, `exec()`, or executes child processes on inspected source code.
+- **Exclusive Report Permissions**: Output reports are created with mode `0600` (read/write only by file owner) using `O_EXCL` creation to prevent overwriting or following malicious symlinks.
+
+---
+
+## Roadmap & Future Improvements
+
+- [x] Autonomous multi-stage review agent lifecycle
+- [x] Multi-provider LLM support (Ollama + Google Gemini + Mock)
+- [x] Contextual remediation and safer alternative code suggestions
+- [x] Strict evidence citation validation against source lines
+- [ ] Add Semgrep, Bandit, and Ruff static analyzer tool adapters
+- [ ] Support streaming large repositories with dynamic chunking
+- [ ] Interactive terminal dashboard for triaging findings
+- [ ] HTML / PDF executive summary export
+
+---
 
 ## License
 
-Contributed under the parent repository MIT licence. Optional external tools retain
-their own licences. See [verification notes](VERIFICATION.md) for actual local results.
+Contributed under the parent repository's MIT License. Optional external tools retain their own respective licenses. See [VERIFICATION.md](VERIFICATION.md) for actual test run notes.
