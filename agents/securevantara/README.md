@@ -1,6 +1,17 @@
 # Securevantara
 
-A local security-review foundation for developers reviewing their own source code.
+**Securevantara is a vulnerability review agent** for anyone who wants to understand
+potential security weaknesses in software they own or are authorized to assess.
+Its intended users include business stakeholders, product and engineering teams,
+website owners, developers, security researchers, and authorized bug-bounty hunters.
+
+The broader goal is to support vulnerability assessment across software applications,
+websites, web applications, APIs, and source-code repositories, including GitHub
+projects. The current version reviews source code using built-in Python checks and
+optional AI review through Ollama, producing evidence-backed JSON reports for human
+review. Findings are suggestions, not proof of exploitability. Running this prototype
+requires command-line setup; a dashboard and business-facing summaries are planned.
+
 This is **not a complete autonomous vulnerability discovery or bug-bounty platform**.
 The default workflow needs no Xalgorix, cloud account, API key, or Python package.
 
@@ -20,6 +31,35 @@ The default workflow needs no Xalgorix, cloud account, API key, or Python packag
 
 The first milestone reviews **local source**, including a manually prepared snapshot of
 an authorized GitHub repository. It does not clone repositories or contact websites.
+
+## Xalgorix capabilities and Securevantara's roadmap
+
+Xalgorix is an optional, separate security engine. Its
+[official v4.6.159 documentation](https://github.com/xalgorix/xalgorix/blob/v4.6.159/README.md)
+describes the following capabilities. These are upstream features, not a list of
+features already implemented or validated in Securevantara.
+
+| Area | Documented Xalgorix capabilities |
+| --- | --- |
+| Websites and web applications | Browser-assisted testing of pages, forms, authentication flows and runtime behavior |
+| APIs | API, GraphQL and WebSocket security testing |
+| Software and repositories | Source review from directories, Git URLs or uploaded code archives; optional build-and-run testing |
+| Discovery | Reconnaissance, directory/file discovery, single-target, wildcard and multiple-target modes |
+| Vulnerability classes | Injection, SSRF, access-control flaws, session issues, uploads, deserialization, race conditions and business logic |
+| Additional assessment areas | CORS, cookies, redirects, subdomain takeover, email, CMS, cloud/infrastructure and content spoofing |
+| Verification | Independent reproduction attempts, exploitation evidence and a distinction between source review and runtime verification |
+| Reporting | CVSS details, evidence, remediation guidance and PDF reports with executive summaries |
+| Operations | Dashboard, scan history, live events, scheduling, service mode and API access |
+| Integrations | Configurable LLM providers including Ollama, AgentMail, Discord, Telegram, Caido traffic inspection and a separate GitHub PR-review app |
+
+Securevantara currently exposes only a partial Xalgorix source-review adapter and
+version probe. Website/API testing, provisioning, independent verification, PDF
+reporting, scheduling and these other integrations are not exposed by this wrapper.
+They require separate implementation and controlled evaluation before being offered
+as Securevantara features. Neither project should be assumed to cover every software
+type or find every vulnerability. Active testing requires explicit target permission;
+Securevantara does not automatically exploit targets, apply fixes, deploy changes or
+submit bounty reports.
 
 ## Architecture and data flow
 
